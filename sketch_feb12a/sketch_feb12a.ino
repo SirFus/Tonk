@@ -59,7 +59,7 @@ void setup() {
 void loop() {
   handleCommunication();
   handleServo();
-  handleDistanceSensor()
+  handleDistanceSensor();
 }
 
 void handleCommunication() {
@@ -139,7 +139,7 @@ void shoot() {
 
   digitalWrite(laserPin, HIGH);
   tone(buzzerPin, 1000);
-  delay(1000)
+  delay(1000);
   noTone(buzzerPin);
   digitalWrite(laserPin, LOW);
 }
