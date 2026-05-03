@@ -11,14 +11,15 @@
 #define START 'A'
 #define PAUSE 'P'
 
-//Motor 1
+// Motor 1
 const int M1pin1 = 2;
 const int M1pin2 = 4;
+
 // Motor 2
 const int M2pin1 = 3;
 const int M2pin2 = 5;
 
-// ultrasonic sensor
+// Ultrasonic sensor
 const int trigPin = 9;
 const int echoPin = 8;
 
@@ -32,26 +33,24 @@ Servo servo1;
 const float sensitivity = 1;
 float angle = 90;
 
-// Laser
 const int laserPin;
-
-// Buzzer
 const int buzzerPin;
-
-// Led
 const int distanceLedPin;
+
 const int MIN_DIST = 70;
 const int MAX_DIST = 250;
 bool canShoot = true;
 
+// Command timeout
+unsigned long lastCommandTime = 0;
+const unsigned long commandTimeout = 200; // milliseconds
+
 void setup() {
-  // Start serial communication
   Serial.begin(9600);
-  
+
   initializeMotors();
   initializeUltrasonic();
 
-  //Servo
   servo1.attach(10);
   servo1.write(90);
 }
@@ -60,75 +59,88 @@ void loop() {
   handleCommunication();
   handleServo();
   handleDistanceSensor();
+  handleLed();
+  handleMotorTimeout();
 }
 
 void handleCommunication() {
   if (Serial.available()) {
     char command = Serial.read();
+    lastCommandTime = millis();
     executeCommand(command);
   }
 }
 
 void handleServo() {
+  angle = constrain(angle, 0, 180);
   servo1.write(angle);
 }
-
 
 void executeCommand(char command) {
   switch (command) {
     case FORWARD:
-    powerSide1(true); 
-    powerSide2(true);
+      powerSide1(true);
+      powerSide2(true);
       break;
+
     case BACKWARD:
-    powerSide1(false); 
-    powerSide2(false);
+      powerSide1(false);
+      powerSide2(false);
       break;
+
     case LEFT:
-    powerSide1(true); 
-    powerSide2(false);
+      powerSide1(true);
+      powerSide2(false);
       break;
+
     case RIGHT:
-    powerSide1(false); 
-    powerSide2(true);
+      powerSide1(false);
+      powerSide2(true);
       break;
+
     case CIRCLE:
       angle += sensitivity;
       break;
+
     case CROSS:
       shoot();
+      break;
+
     case SQUARE:
       angle -= sensitivity;
       break;
   }
 }
 
+void handleMotorTimeout() {
+  if (millis() - lastCommandTime > commandTimeout) {
+    digitalWrite(M1pin1, LOW);
+    digitalWrite(M1pin2, LOW);
+    digitalWrite(M2pin1, LOW);
+    digitalWrite(M2pin2, LOW);
+  }
+}
+
 void handleDistanceSensor() {
-  // Clears the trigPin
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
 
-  // Sets the trigPin on HIGH state for 10 micro seconds
   digitalWrite(trigPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
-  
-  // Reads the echoPin, returns the sound wave travel time in microseconds
-  duration = pulseIn(echoPin, HIGH, 25000);
-  
-  // Calculate the distance
 
-  if (duration * SOUND_SPEED/2 != 0) {
-    distance = duration * SOUND_SPEED/2;
+  duration = pulseIn(echoPin, HIGH, 25000);
+
+  if (duration > 0) {
+    distance = duration * SOUND_SPEED / 2;
   }
 }
 
 void handleLed() {
-  if (MIN_DIST < distance < MAX_DIST) {
+  if (distance > MIN_DIST && distance < MAX_DIST) {
     digitalWrite(distanceLedPin, HIGH);
     canShoot = true;
-  }
-  else {
+  } else {
     digitalWrite(distanceLedPin, LOW);
     canShoot = false;
   }
@@ -144,17 +156,15 @@ void shoot() {
   digitalWrite(laserPin, LOW);
 }
 
-// Driver neutral steering
-void powerSide1(bool param) 
-{
-  digitalWrite(M1pin1, param ? HIGH : LOW);
-  digitalWrite(M1pin2, param ? LOW : HIGH); 
+// Motor control
+void powerSide1(bool forward) {
+  digitalWrite(M1pin1, forward ? HIGH : LOW);
+  digitalWrite(M1pin2, forward ? LOW : HIGH);
 }
 
-void powerSide2(bool param) 
-{
-  digitalWrite(M2pin1, param ? LOW : HIGH);
-  digitalWrite(M2pin2, param ? HIGH : LOW); 
+void powerSide2(bool forward) {
+  digitalWrite(M2pin1, forward ? LOW : HIGH);
+  digitalWrite(M2pin2, forward ? HIGH : LOW);
 }
 
 void initializeMotors() {
