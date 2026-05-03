@@ -1,0 +1,226 @@
+#include <Servo.h>
+
+// ================= BLUETOOTH COMMANDS =================
+#define FORWARD 'F'
+#define BACKWARD 'B'
+#define LEFT 'L'
+#define RIGHT 'R'
+#define CIRCLE 'C'
+#define CROSS 'X'
+#define SQUARE 'S'
+#define PAUSE 'P'
+
+// ================= MOTORS (L298P) =================
+// Left track
+const int M1pin1 = 7;
+const int M1pin2 = 8;
+const int M1EN = 10;
+
+// Right track
+const int M2pin1 = 12;
+const int M2pin2 = 13;
+const int M2EN = 11;
+
+// ================= ULTRASONIC =================
+const int trigPin = 2;
+const int echoPin = 4;
+
+float distance = 0;
+long duration = 0;
+const float SOUND_SPEED = 0.034;
+
+// ================= SERVO =================
+Servo servo1;
+float angle = 90;
+const float sensitivity = 2;
+
+// ================= OUTPUT DEVICES =================
+const int laserPin = 6;
+const int buzzerPin = 7;
+const int ledPin = 10;
+
+// ================= SAFETY =================
+unsigned long lastCommandTime = 0;
+const unsigned long timeout = 200;
+bool canShoot = false;
+
+// ================= SETUP =================
+void setup() {
+  Serial.begin(9600);
+
+  initializePins();
+
+  servo1.attach(11);
+  servo1.write(angle);
+
+  stopMotors();
+}
+
+// ================= LOOP =================
+void loop() {
+  handleCommunication();
+  handleServo();
+  handleUltrasonic();
+  handleSafety();
+  handleTimeout();
+}
+
+// ================= BLUETOOTH =================
+void handleCommunication() {
+  if (Serial.available()) {
+    char c = Serial.read();
+    lastCommandTime = millis();
+    executeCommand(c);
+  }
+}
+
+// ================= COMMANDS =================
+void executeCommand(char c) {
+
+  switch (c) {
+
+    case FORWARD:
+      moveForward();
+      delay(1000);
+      break;
+
+    case BACKWARD:
+      moveBackward();
+      break;
+
+    case LEFT:
+      turnLeft();
+      break;
+
+    case RIGHT:
+      turnRight();
+      break;
+
+    case PAUSE:
+      stopMotors();
+      break;
+
+    case CIRCLE:
+      angle += sensitivity;
+      break;
+
+    case SQUARE:
+      angle -= sensitivity;
+      break;
+
+    case CROSS:
+      shoot();
+      break;
+  }
+}
+
+// ================= MOTOR CONTROL =================
+void moveForward() {
+  digitalWrite(M1EN, HIGH);
+  digitalWrite(M1pin1, HIGH);
+  digitalWrite(M1pin2, LOW);
+
+  digitalWrite(M2EN, HIGH);
+  digitalWrite(M2pin1, HIGH);
+  digitalWrite(M2pin2, LOW);
+}
+
+void moveBackward() {
+  digitalWrite(M1pin1, LOW);
+  digitalWrite(M1pin2, HIGH);
+
+  digitalWrite(M2pin1, LOW);
+  digitalWrite(M2pin2, HIGH);
+}
+
+void turnLeft() {
+  digitalWrite(M1pin1, LOW);
+  digitalWrite(M1pin2, HIGH);
+
+  digitalWrite(M2pin1, HIGH);
+  digitalWrite(M2pin2, LOW);
+}
+
+void turnRight() {
+  digitalWrite(M1pin1, HIGH);
+  digitalWrite(M1pin2, LOW);
+
+  digitalWrite(M2pin1, LOW);
+  digitalWrite(M2pin2, HIGH);
+}
+
+void stopMotors() {
+  digitalWrite(M1pin1, LOW);
+  digitalWrite(M1pin2, LOW);
+  digitalWrite(M2pin1, LOW);
+  digitalWrite(M2pin2, LOW);
+}
+
+// ================= SERVO =================
+void handleServo() {
+  angle = constrain(angle, 0, 180);
+  servo1.write(angle);
+}
+
+// ================= ULTRASONIC =================
+void handleUltrasonic() {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  duration = pulseIn(echoPin, HIGH, 25000);
+
+  if (duration > 0) {
+    distance = duration * SOUND_SPEED / 2;
+  }
+}
+
+// ================= SAFETY =================
+void handleSafety() {
+  if (distance > 20 && distance < 120) {
+    digitalWrite(ledPin, HIGH);
+    canShoot = true;
+  } else {
+    digitalWrite(ledPin, LOW);
+    canShoot = false;
+  }
+}
+
+// ================= SHOOT =================
+void shoot() {
+  if (!canShoot) return;
+
+  digitalWrite(laserPin, HIGH);
+  tone(buzzerPin, 1000);
+  delay(500);
+  noTone(buzzerPin);
+  digitalWrite(laserPin, LOW);
+}
+
+// ================= TIMEOUT =================
+void handleTimeout() {
+  if (millis() - lastCommandTime > timeout) {
+    stopMotors();
+  }
+}
+
+// ================= INIT =================
+void initializePins() {
+
+  pinMode(M1pin1, OUTPUT);
+  pinMode(M1pin2, OUTPUT);
+  pinMode(M1EN, OUTPUT);
+  pinMode(M2pin1, OUTPUT);
+  pinMode(M2pin2, OUTPUT);
+  pinMode(M2EN, OUTPUT);
+
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+
+  pinMode(laserPin, OUTPUT);
+  pinMode(buzzerPin, OUTPUT);
+  pinMode(ledPin, OUTPUT);
+}
