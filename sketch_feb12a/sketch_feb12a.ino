@@ -56,7 +56,7 @@ void setup() {
   initializeMotors();
   initializeUltrasonic();
 
-  servo1.attach(3);
+  servo1.attach(9);
   servo1.write(90);
 }
 
