@@ -25,8 +25,8 @@ const int ENB = 11;
 int motorSpeed = 200;
 
 // Ultrasonic sensor
-const int trigPin = 9;
-const int echoPin = 8;
+const int trigPin = 2;
+const int echoPin = 4;
 
 const float SOUND_SPEED = 0.034;
 
