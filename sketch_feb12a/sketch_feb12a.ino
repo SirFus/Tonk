@@ -12,12 +12,17 @@
 #define PAUSE 'P'
 
 // Motor 1
-const int M1pin1 = 2;
-const int M1pin2 = 4;
+const int M1pin1 = 12;
+const int M1pin2 = 13;
 
 // Motor 2
-const int M2pin1 = 3;
-const int M2pin2 = 5;
+const int M2pin1 = 7;
+const int M2pin2 = 8;
+
+const int ENA = 10;
+const int ENB = 11;
+
+int motorSpeed = 200;
 
 // Ultrasonic sensor
 const int trigPin = 9;
@@ -172,6 +177,11 @@ void initializeMotors() {
   pinMode(M1pin2, OUTPUT);
   pinMode(M2pin1, OUTPUT);
   pinMode(M2pin2, OUTPUT);
+  pinMode(ENA, OUTPUT);
+  pinMode(ENB, OUTPUT);
+
+  analogWrite(ENA, motorSpeed);
+  analogWrite(ENB, motorSpeed);
 }
 
 void initializeUltrasonic() {
