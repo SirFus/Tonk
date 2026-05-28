@@ -1,0 +1,240 @@
+#define FORWARD 'U'
+#define BACKWARD 'B'
+#define LEFT 'L'
+#define RIGHT 'R'
+#define CIRCLE 'C'
+#define CROSS 'X'
+#define TRIANGLE 'T'
+#define SQUARE 'S'
+#define START 'A'
+#define PAUSE 'P'
+
+// ====================== PIN DEFINITIONS ======================
+const int INA = 12;     
+const int INB = 13;     
+const int ENA = 10;     
+const int ENB = 11;     
+
+int motorSpeed = 200;
+
+// Ultrasonic Sensor
+const int trigPin = 2;
+const int echoPin = 3;
+const float SOUND_SPEED = 0.034;
+float distance;
+long duration;
+
+// ====================== MANUAL SERVO (Hold Support) ======================
+const int servoPin = 6;
+const float sensitivity = 6;        // Speed of movement while holding
+float angle = 90;
+
+unsigned long lastServoTime = 0;
+const unsigned long servoRefreshInterval = 12;   // Smoother movement
+
+// New variables for hold behavior
+char servoDirection = ' ';   // 'C' = left, 'S' = right, ' ' = stopped
+
+// ====================== ACCESSORY PINS ======================
+const int buzzerPin = 4;
+const int laserPin = 5;
+const int distanceLedPin = 7;
+
+const int MIN_DIST = 70;
+const int MAX_DIST = 250;
+bool canShoot = true;
+
+// ====================== TIMING ======================
+unsigned long lastCommandTime = 0;
+const unsigned long commandTimeout = 2000;
+
+unsigned long laserShootTime = 0;
+bool isShooting = false;
+
+unsigned long lastDistanceTime = 0;
+const unsigned long distanceInterval = 80;
+
+void setup() {
+  Serial.begin(9600);
+
+  initializeMotors();
+  initializeUltrasonic();
+
+  pinMode(laserPin, OUTPUT);
+  pinMode(distanceLedPin, OUTPUT);
+  pinMode(buzzerPin, OUTPUT);
+  pinMode(servoPin, OUTPUT);
+
+  Serial.println("Tank Ready");
+  Serial.println("Hold C = Servo Left | Hold S = Servo Right | P = Stop");
+}
+
+void loop() {
+  handleCommunication();
+  handleServoManual();        // Continuous movement if holding
+  
+  if (millis() - lastDistanceTime >= distanceInterval) {
+    handleDistanceSensor();
+    handleLed();
+    lastDistanceTime = millis();
+  }
+  
+  handleMotorTimeout();
+  updateShootState();
+}
+
+void handleCommunication() {
+  if (Serial.available()) {
+    char command = Serial.read();
+    lastCommandTime = millis();
+    executeCommand(command);
+  }
+}
+
+// ====================== CONTINUOUS SERVO MOVEMENT ======================
+void handleServoManual() {
+  if (millis() - lastServoTime >= servoRefreshInterval) {
+    angle = constrain(angle, 0, 180);
+
+    // Move continuously if holding button
+    if (servoDirection == 'C') {
+      angle += sensitivity;
+    } 
+    else if (servoDirection == 'S') {
+      angle -= sensitivity;
+    }
+
+    int pulseWidth = map(angle, 0, 180, 1000, 2000);
+    
+    digitalWrite(servoPin, HIGH);
+    delayMicroseconds(pulseWidth);
+    digitalWrite(servoPin, LOW);
+    
+    lastServoTime = millis();
+  }
+}
+
+void executeCommand(char command) {
+  switch (command) {
+    case FORWARD:  
+      moveTank(HIGH, HIGH, motorSpeed); 
+      Serial.println("→ Forward"); 
+      break;
+      
+    case BACKWARD: 
+      moveTank(LOW, LOW, motorSpeed); 
+      Serial.println("→ Backward"); 
+      break;
+      
+    case LEFT:     
+      moveTank(LOW, HIGH, motorSpeed); 
+      Serial.println("→ Left"); 
+      break;
+      
+    case RIGHT:    
+      moveTank(HIGH, LOW, motorSpeed); 
+      Serial.println("→ Right"); 
+      break;
+      
+    case CIRCLE:   // Start moving servo LEFT while held
+      servoDirection = 'C';
+      Serial.println("→ Servo Left (Holding)");
+      break;
+      
+    case SQUARE:   // Start moving servo RIGHT while held
+      servoDirection = 'S';
+      Serial.println("→ Servo Right (Holding)");
+      break;
+      
+    case CROSS:
+      startShoot();
+      Serial.println("→ Shoot");
+      break;
+      
+    case PAUSE:
+      stopMotors();
+      servoDirection = ' ';     // Stop servo movement
+      Serial.println("→ All Stop");
+      break;
+      
+    default:
+      stopMotors();
+      servoDirection = ' ';
+      break;
+  }
+}
+
+void handleMotorTimeout() {
+  if (millis() - lastCommandTime > commandTimeout) {
+    stopMotors();
+    servoDirection = ' ';   // Safety stop
+  }
+}
+
+// ====================== Rest of the code (unchanged) ======================
+void handleDistanceSensor() {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  duration = pulseIn(echoPin, HIGH, 20000); 
+
+  if (duration > 0) {
+    distance = duration * SOUND_SPEED / 2;
+  } else {
+    distance = 999;
+  }
+}
+
+void handleLed() {
+  if (distance > MIN_DIST && distance < MAX_DIST) {
+    digitalWrite(distanceLedPin, HIGH);
+    canShoot = true;
+  } else {
+    digitalWrite(distanceLedPin, LOW);
+    canShoot = false;
+  }
+}
+
+void startShoot() {
+  if (!canShoot || isShooting) return;
+  isShooting = true;
+  laserShootTime = millis();
+  digitalWrite(laserPin, HIGH);
+  tone(buzzerPin, 1000);
+}
+
+void updateShootState() {
+  if (isShooting && (millis() - laserShootTime >= 1000)) {
+    noTone(buzzerPin);
+    digitalWrite(laserPin, LOW);
+    isShooting = false;
+  }
+}
+
+void moveTank(int dirA, int dirB, int speed) {
+  digitalWrite(INA, dirA);
+  digitalWrite(INB, dirB);
+  analogWrite(ENA, speed);
+  analogWrite(ENB, speed);
+}
+
+void stopMotors() {
+  analogWrite(ENA, 0);
+  analogWrite(ENB, 0);
+}
+
+void initializeMotors() {
+  pinMode(INA, OUTPUT);
+  pinMode(INB, OUTPUT);
+  pinMode(ENA, OUTPUT);
+  pinMode(ENB, OUTPUT);
+  stopMotors();
+}
+
+void initializeUltrasonic() {
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+}
