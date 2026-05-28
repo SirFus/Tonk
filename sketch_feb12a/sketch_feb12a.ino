@@ -11,17 +11,18 @@
 #define START 'A'
 #define PAUSE 'P'
 
-// --- L298P Motor Shield Pin Designations (Fixed by Shield Hardware) ---
-const int INA = 12; // Motor A Direction
-const int INB = 13; // Motor B Direction
-const int ENA = 10; // Motor A Speed (PWM)
-const int ENB = 11; // Motor B Speed (PWM)
+// --- UPDATED FOR YOUR SPECIFIC BOARD ---
+// This specific L298P shield uses D3, D5, D6, D7 for motor configurations
+const int ENA = 3;  // Motor A Speed (PWM)
+const int ENB = 5;  // Motor B Speed (PWM) -> From the NO.3.5.6 PIN header
+const int INA = 6;  // Motor A Direction
+const int INB = 7;  // Motor B Direction -> From the NO.7 PIN header
 
 int motorSpeed = 200; // Speed value between 0 and 255
 
-// --- Ultrasonic Sensor Pins ---
-const int trigPin = 2;
-const int echoPin = 3; // CHANGED from 4 because 4 is used by the Shield Buzzer
+// --- Ultrasonic Sensor Pins (Moved to avoid motor conflict) ---
+const int trigPin = 2; // Placed on the dedicated NO.2 PIN header
+const int echoPin = A0; // Moved to Analog 0 (acting as digital input)
 
 const float SOUND_SPEED = 0.034;
 float distance;
@@ -29,29 +30,32 @@ long duration;
 
 // --- Servo ---
 Servo servo1;
-const float sensitivity = 3; // Step amount for servo rotation per button press
+const float sensitivity = 3; 
 float angle = 90;
 
-// --- Accessory Pins ---
-const int buzzerPin = 4;      // Fixed by L298P Shield hardware
-const int laserPin = 5;       // Assigned to Digital Pin 5
-const int distanceLedPin = 6; // Assigned to Digital Pin 6
+// --- Accessory Pins (Moved to free Analog Pins) ---
+const int buzzerPin = A1;      // Moved to Analog 1
+const int laserPin = A2;       // Moved to Analog 2
+const int distanceLedPin = A3; // Moved to Analog 3
 
 const int MIN_DIST = 70;
 const int MAX_DIST = 250;
 bool canShoot = true;
 
-// --- Timing Variables (Non-blocking controls) ---
+// --- Timing Variables ---
 unsigned long lastCommandTime = 0;
-const unsigned long commandTimeout = 200; // Stop motors if no command in 200ms
+const unsigned long commandTimeout = 200; 
 
 unsigned long laserShootTime = 0;
 bool isShooting = false;
 
 unsigned long lastDistanceTime = 0;
-const unsigned long distanceInterval = 80; // Only check distance every 80ms to prevent lag
+const unsigned long distanceInterval = 80; 
 
 void setup() {
+  // Note: The Bluetooth interface on this board uses standard hardware RX/TX.
+  // When uploading code via USB, you MUST unplug the Bluetooth module, 
+  // otherwise the upload will fail!
   Serial.begin(9600);
 
   initializeMotors();
@@ -61,15 +65,14 @@ void setup() {
   pinMode(distanceLedPin, OUTPUT);
   pinMode(buzzerPin, OUTPUT);
 
-  servo1.attach(9); // Servo Signal Pin
+  //servo1.attach(9); // Matches the "Servo Interface (GND, 5V, D9)" perfectly!
   servo1.write(angle);
 }
 
 void loop() {
-  handleCommunication(); // Checked constantly for instant response
+  handleCommunication(); 
   handleServo();
   
-  // Periodically checks distance so pulseIn() doesn't bottleneck the Bluetooth serial buffer
   if (millis() - lastDistanceTime >= distanceInterval) {
     handleDistanceSensor();
     handleLed();
@@ -77,7 +80,7 @@ void loop() {
   }
   
   handleMotorTimeout();
-  updateShootState(); // Manages firing laser/buzzer timing
+  updateShootState(); 
 }
 
 void handleCommunication() {
@@ -96,29 +99,23 @@ void handleServo() {
 void executeCommand(char command) {
   switch (command) {
     case FORWARD:
-      moveTank(HIGH, HIGH, motorSpeed); // Both tracks forward
+      moveTank(HIGH, HIGH, motorSpeed); 
       break;
-
     case BACKWARD:
-      moveTank(LOW, LOW, motorSpeed);  // Both tracks backward
+      moveTank(LOW, LOW, motorSpeed);  
       break;
-
     case LEFT:
-      moveTank(LOW, HIGH, motorSpeed); // Pivot Left (Track A back, Track B forward)
+      moveTank(LOW, HIGH, motorSpeed); 
       break;
-
     case RIGHT:
-      moveTank(HIGH, LOW, motorSpeed); // Pivot Right (Track A forward, Track B back)
+      moveTank(HIGH, LOW, motorSpeed); 
       break;
-
     case CIRCLE:
       angle += sensitivity;
       break;
-
     case SQUARE:
       angle -= sensitivity;
       break;
-
     case CROSS:
       startShoot();
       break;
@@ -127,7 +124,6 @@ void executeCommand(char command) {
 
 void handleMotorTimeout() {
   if (millis() - lastCommandTime > commandTimeout) {
-    // Cut PWM speed to both motors safely if Bluetooth disconnects or button released
     analogWrite(ENA, 0);
     analogWrite(ENB, 0);
   }
@@ -136,18 +132,16 @@ void handleMotorTimeout() {
 void handleDistanceSensor() {
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
-
   digitalWrite(trigPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
 
-  // 20000ms timeout prevents the Arduino from freezing if the sensor misses an echo
   duration = pulseIn(echoPin, HIGH, 20000); 
 
   if (duration > 0) {
     distance = duration * SOUND_SPEED / 2;
   } else {
-    distance = 999; // Clear path / out of range
+    distance = 999; 
   }
 }
 
@@ -161,7 +155,6 @@ void handleLed() {
   }
 }
 
-// Starts the shooting process cleanly
 void startShoot() {
   if (!canShoot || isShooting) return;
 
@@ -172,7 +165,6 @@ void startShoot() {
   tone(buzzerPin, 1000);
 }
 
-// Automatically turns off laser and buzzer after 1000ms has elapsed
 void updateShootState() {
   if (isShooting && (millis() - laserShootTime >= 1000)) {
     noTone(buzzerPin);
@@ -181,7 +173,6 @@ void updateShootState() {
   }
 }
 
-// --- Shield Motor Driving Logic ---
 void moveTank(int dirA, int dirB, int speed) {
   digitalWrite(INA, dirA);
   digitalWrite(INB, dirB);
